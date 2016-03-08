@@ -1,20 +1,13 @@
 package com.codingbad.com.bluetoothtest;
 
-import android.Manifest;
-import android.annotation.TargetApi;
-import android.app.Activity;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
-import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
@@ -27,14 +20,19 @@ import com.squareup.otto.Subscribe;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
-public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener, CompoundButton.OnCheckedChangeListener {
+public class MainActivity extends AppCompatActivity implements BluetoothDevicesAdapter.RecyclerViewListener, CompoundButton.OnCheckedChangeListener,
+        ScannerFragment.OnDeviceSelectedListener {
 
+    protected static final int REQUEST_ENABLE_BT = 2;
     private static final long INTERVAL_MILLIS = 6000;
     private static final int PERMISSIONS_REQUEST_BLUETOOTH_ADMIN = 1;
+    private static final String TAG = MainActivity.class.toString();
+
 
     @Bind(R.id.scan_button)
     protected Switch scanButton;
@@ -59,6 +57,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
     };
     private List<BluetoothDeviceWithStrength> foundBluetooth;
     private BluetoothAdapter bTAdapter;
+    private BleProfileService mService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,82 +99,6 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         ottoBus.unregister(this);
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
-    private void promptUserForBluetoothAccess() {
-        int permissionCheck = ContextCompat.checkSelfPermission(this,
-                Manifest.permission.BLUETOOTH_ADMIN);
-
-        if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
-            // Should we show an explanation?
-            if (shouldShowRequestPermissionRationale(Manifest.permission.BLUETOOTH_ADMIN)) {
-
-                // Show an explanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-
-            } else {
-
-                // No explanation needed, we can request the permission.
-
-                requestPermissions(new String[]{Manifest.permission.BLUETOOTH_ADMIN},
-                        PERMISSIONS_REQUEST_BLUETOOTH_ADMIN);
-
-                // PERMISSIONS_REQUEST_BLUETOOTH_ADMIN is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
-            }
-        } else {
-            // if permission is granted, turn on bluetooth
-            registerBluetoothReceiver();
-        }
-    }
-
-    private void registerBluetoothReceiver() {
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        bluetoothDevicesAdapter.removeAll();
-        registerReceiver(broadcastReceiver, filter);
-        bTAdapter.startDiscovery();
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_REQUEST_BLUETOOTH_ADMIN: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-                    registerBluetoothReceiver();
-                } else {
-
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-                }
-                return;
-            }
-
-            // other 'case' lines to check for other
-            // permissions this app might request
-        }
-    }
-
-    private void scanBluetooth() {
-        // Construct an intent that will execute the AlarmReceiver
-        Intent intent = new Intent(getApplicationContext(), AlarmReceiver.class);
-        // Create a PendingIntent to be triggered when the alarm goes off
-        final PendingIntent pIntent = PendingIntent.getBroadcast(this, AlarmReceiver.REQUEST_CODE,
-                intent, PendingIntent.FLAG_UPDATE_CURRENT);
-        long firstMillis = System.currentTimeMillis(); // alarm is set right away
-        AlarmManager alarm = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
-        // First parameter is the type: ELAPSED_REALTIME, ELAPSED_REALTIME_WAKEUP, RTC_WAKEUP
-        // Interval can be INTERVAL_FIFTEEN_MINUTES, INTERVAL_HALF_HOUR, INTERVAL_HOUR, INTERVAL_DAY
-        alarm.setRepeating(AlarmManager.RTC_WAKEUP, firstMillis,
-                AlarmManager.INTERVAL_FIFTEEN_MINUTES, pIntent);
-    }
-
     @Override
     public void onItemClickListener(View view, int position) {
         try {
@@ -191,14 +114,61 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         bluetoothDevicesAdapter.addItem(bluetoothDeviceWithStrength);
     }
 
+    protected boolean isBLEEnabled() {
+        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        final BluetoothAdapter adapter = bluetoothManager.getAdapter();
+        return adapter != null && adapter.isEnabled();
+    }
+
+    public void onConnectClicked() {
+        if (isBLEEnabled()) {
+            if (mService == null) {
+                setDefaultUI();
+                showDeviceScanningDialog(getFilterUUID());
+            } else {
+                mService.disconnect();
+            }
+        } else {
+            showBLEDialog();
+        }
+    }
+
+    protected void showBLEDialog() {
+        final Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+        startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+    }
+
+    protected UUID getFilterUUID() {
+        return null; // not used
+    }
+
+    private void showDeviceScanningDialog(final UUID filter) {
+        final ScannerFragment dialog = ScannerFragment.getInstance(filter);
+        dialog.show(getSupportFragmentManager(), "scan_fragment");
+    }
+
+    protected void setDefaultUI() {
+        // empty
+    }
+
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         if (isChecked) {
-            promptUserForBluetoothAccess();
+            onConnectClicked();
         } else {
             unregisterReceiver(broadcastReceiver);
             bTAdapter.cancelDiscovery();
             bluetoothDevicesAdapter.removeAll();
         }
+    }
+
+    @Override
+    public void onDeviceSelected(final BluetoothDevice device, final String name) {
+
+    }
+
+    @Override
+    public void onDialogCanceled() {
+
     }
 }
