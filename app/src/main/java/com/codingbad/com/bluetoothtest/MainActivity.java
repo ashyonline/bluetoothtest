@@ -2,6 +2,7 @@ package com.codingbad.com.bluetoothtest;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.ParcelUuid;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -27,6 +28,7 @@ import no.nordicsemi.android.support.v18.scanner.ScanSettings;
 public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener, CompoundButton.OnCheckedChangeListener {
 
     private static final String TAG = MainActivity.class.toString();
+    private static final long SCAN_DURATION = 5000;
     @Bind(R.id.scan_button)
     protected Switch scanButton;
 
@@ -63,6 +65,9 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
             }
         }
     };
+    private boolean mIsScanning = false;
+    private Handler mHandler = new Handler();
+    private android.os.ParcelUuid mUuid;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,13 +96,43 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
 
     }
 
+    public void startScanning2() {
+        final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
+        final ScanSettings settings = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).setReportDelay(1000).setUseHardwareBatchingIfSupported(false).build();
+        final List<ScanFilter> filters = new ArrayList<>();
+        filters.add(new ScanFilter.Builder().setServiceUuid(mUuid).build());
+        scanner.startScan(filters, settings, scanCallback);
+
+        mIsScanning = true;
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mIsScanning) {
+                    stopScan();
+                }
+            }
+        }, SCAN_DURATION);
+    }
+
+    /**
+     * Stop scan if user tap Cancel button
+     */
+    private void stopScan() {
+        if (mIsScanning) {
+            final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
+            scanner.stopScan(scanCallback);
+
+            mIsScanning = false;
+        }
+    }
+
     private void startScanning() {
         BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
         ScanSettings settings = new ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).setReportDelay(1000)
                 .setUseHardwareBatchingIfSupported(false).build();
         List<ScanFilter> filters = new ArrayList<>();
-        ParcelUuid mUuid = new ParcelUuid(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));
         filters.add(new ScanFilter.Builder().setServiceUuid(mUuid).build());
         scanner.startScan(filters, settings, scanCallback);
     }
