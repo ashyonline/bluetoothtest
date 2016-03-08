@@ -3,7 +3,6 @@ package com.codingbad.com.bluetoothtest;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.ParcelUuid;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -11,11 +10,8 @@ import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 
-import com.google.inject.Inject;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -57,12 +53,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         @Override
         public void onBatchScanResults(List<ScanResult> results) {
             super.onBatchScanResults(results);
-            Log.d(TAG, "found: " + results.size());
-            for (ScanResult result : results) {
-                BluetoothDeviceWithStrength newDevice = new BluetoothDeviceWithStrength(result.getDevice(), result.getRssi());
-                // Add it to our adapter
-                bluetoothDevicesAdapter.addItem(newDevice);
-            }
+            bluetoothDevicesAdapter.update(results);
         }
     };
     private boolean mIsScanning = false;
