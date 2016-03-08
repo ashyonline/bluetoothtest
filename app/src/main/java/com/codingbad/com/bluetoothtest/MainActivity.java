@@ -24,9 +24,9 @@ import android.widget.Switch;
 import com.google.inject.Inject;
 import com.squareup.otto.Subscribe;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -178,7 +178,11 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
 
     @Override
     public void onItemClickListener(View view, int position) {
-        new ConnectThread().connect(bluetoothDevicesAdapter.getItemAtPosition(position).getDevice(), UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));
+        try {
+            new BluetoothConnector(bluetoothDevicesAdapter.getItemAtPosition(position).getDevice(), false, bTAdapter, null).connect();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Subscribe
@@ -194,6 +198,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         } else {
             unregisterReceiver(broadcastReceiver);
             bTAdapter.cancelDiscovery();
+            bluetoothDevicesAdapter.removeAll();
         }
     }
 }
