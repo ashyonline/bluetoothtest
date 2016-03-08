@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.os.ParcelUuid;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
@@ -25,6 +26,7 @@ import no.nordicsemi.android.support.v18.scanner.ScanSettings;
 
 public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener, CompoundButton.OnCheckedChangeListener {
 
+    private static final String TAG = MainActivity.class.toString();
     @Bind(R.id.scan_button)
     protected Switch scanButton;
 
@@ -38,6 +40,8 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
+
+            Log.d(TAG, "one device found");
             BluetoothDeviceWithStrength newDevice = new BluetoothDeviceWithStrength(result.getDevice(), result.getRssi());
             // Add it to our adapter
             bluetoothDevicesAdapter.addItem(newDevice);
@@ -51,7 +55,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         @Override
         public void onBatchScanResults(List<ScanResult> results) {
             super.onBatchScanResults(results);
-
+            Log.d(TAG, "found: " + results.size());
             for (ScanResult result : results) {
                 BluetoothDeviceWithStrength newDevice = new BluetoothDeviceWithStrength(result.getDevice(), result.getRssi());
                 // Add it to our adapter
