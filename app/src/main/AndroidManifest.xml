@@ -29,6 +29,9 @@
             android:name=".ScanBluetoothService"
             android:exported="false" />
 
+        <service
+            android:name=".UARTService"
+            android:exported="false" />
     </application>
 
 </manifest>

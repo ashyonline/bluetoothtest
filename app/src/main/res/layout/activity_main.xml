@@ -21,5 +21,30 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/scan_button"
-        android:layout_marginTop="@dimen/activity_vertical_margin" />
+        android:layout_marginTop="@dimen/activity_vertical_margin"
+        android:layout_above="@+id/connected_layout" />
+
+    <LinearLayout
+        android:id="@+id/connected_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_horizontal"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:visibility="invisible">
+    <Button
+        android:id="@+id/disconnect_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/disconnect" />
+
+    <Button
+        android:id="@+id/send_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/send" />
+    </LinearLayout>
 </RelativeLayout>
