@@ -19,16 +19,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <receiver
-            android:name=".AlarmReceiver"
-            android:process=":remote" >
-        </receiver>
-
-        <service
-            android:name=".ScanBluetoothService"
-            android:exported="false" />
-
         <service
             android:name=".UARTService"
             android:exported="false" />

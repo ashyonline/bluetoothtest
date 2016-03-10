@@ -7,9 +7,6 @@ import android.bluetooth.BluetoothGattCallback;
  * Created by Ayelen Chavez on 10.03.16.
  */
 public interface BleManagerCallbacks {
-
-    public void onDataReceived(final String data);
-
     public void onDataSent(final String data);
 
     /**

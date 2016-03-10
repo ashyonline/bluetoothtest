@@ -48,6 +48,10 @@ public class UARTManager {
     private BluetoothGatt mBluetoothGatt;
     private boolean mUserDisconnected;
     private BleManagerCallbacks mCallbacks;
+
+    /**
+     * Listen to whenever a device is bonded
+     */
     private BroadcastReceiver mBondingBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(final Context context, final Intent intent) {
@@ -105,6 +109,8 @@ public class UARTManager {
                 }
 
                 onDeviceDisconnected();
+                mCallbacks.onDeviceDisconnected();
+
                 mConnected = false;
 
                 if (mUserDisconnected) {
@@ -119,7 +125,7 @@ public class UARTManager {
                 }
                 Log.d(TAG, "Disconnected from " + gatt.getDevice().getAddress() + " - " + gatt.getDevice().getName());
                 // stopSelf();
-                // close();
+                close();
             }
         }
 
@@ -187,6 +193,19 @@ public class UARTManager {
 
         // Register bonding broadcast receiver
         context.registerReceiver(mBondingBroadcastReceiver, new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED));
+    }
+
+    public boolean disconnect() {
+        mUserDisconnected = true;
+
+        if (mConnected && mBluetoothGatt != null) {
+            Log.v(TAG, "Disconnecting...");
+            mCallbacks.onDeviceDisconnecting();
+            Log.d(TAG, "gatt.disconnect()");
+            mBluetoothGatt.disconnect();
+            return true;
+        }
+        return false;
     }
 
     public void close() {
