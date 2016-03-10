@@ -21,7 +21,7 @@ import java.util.UUID;
 /**
  * Created by Ayelen Chavez on 09.03.16.
  */
-public class UARTService extends Service {
+public class UARTService extends Service implements BleManagerCallbacks {
     public static final String BROADCAST_UART_TX = "no.nordicsemi.android.nrftoolbox.uart.BROADCAST_UART_TX";
     public static final String BROADCAST_UART_RX = "no.nordicsemi.android.nrftoolbox.uart.BROADCAST_UART_RX";
     public static final String EXTRA_DATA = "no.nordicsemi.android.nrftoolbox.uart.EXTRA_DATA";
@@ -125,6 +125,16 @@ public class UARTService extends Service {
         }
     };
 
+    @Override
+    public void onDeviceConnected() {
+
+    }
+
+    @Override
+    public void onDeviceDisconnecting() {
+
+    }
+
     public void onDeviceDisconnected() {
         mConnected = false;
         deviceAddress = null;
@@ -135,6 +145,46 @@ public class UARTService extends Service {
         LocalBroadcastManager.getInstance(this).sendBroadcast(broadcast);
 
         stopSelf();
+    }
+
+    @Override
+    public void onLinklossOccur() {
+
+    }
+
+    @Override
+    public void onServicesDiscovered(boolean optionalServicesFound) {
+
+    }
+
+    @Override
+    public void onDeviceReady() {
+
+    }
+
+    @Override
+    public void onBatteryValueReceived(int value) {
+
+    }
+
+    @Override
+    public void onBondingRequired() {
+
+    }
+
+    @Override
+    public void onBonded() {
+
+    }
+
+    @Override
+    public void onError(String message, int errorCode) {
+
+    }
+
+    @Override
+    public void onDeviceNotSupported() {
+
     }
 
     @Override
@@ -214,6 +264,11 @@ public class UARTService extends Service {
     protected UARTBinder getBinder() {
         // default implementation returns the basic binder. You can overwrite the LocalBinder with your own, wider implementation
         return new UARTBinder();
+    }
+
+    @Override
+    public void onDataReceived(String data) {
+
     }
 
     public void onDataSent(final String data) {
