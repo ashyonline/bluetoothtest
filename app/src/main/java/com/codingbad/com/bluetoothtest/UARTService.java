@@ -18,12 +18,12 @@ public class UARTService extends Service implements BleManagerCallbacks {
     private UARTManager bluetoothManager;
 
     private String deviceAddress;
-    private boolean mConnected;
+    private boolean connected;
     private boolean serverBinded;
 
     @Override
     public void onDeviceConnected() {
-        mConnected = true;
+        connected = true;
     }
 
     @Override
@@ -32,7 +32,7 @@ public class UARTService extends Service implements BleManagerCallbacks {
     }
 
     public void onDeviceDisconnected() {
-        mConnected = false;
+        connected = false;
         deviceAddress = null;
 
         stopSelf();
@@ -154,7 +154,7 @@ public class UARTService extends Service implements BleManagerCallbacks {
         }
 
         public final void disconnect() {
-            if (!mConnected) {
+            if (!connected) {
                 onDeviceDisconnected();
                 return;
             }

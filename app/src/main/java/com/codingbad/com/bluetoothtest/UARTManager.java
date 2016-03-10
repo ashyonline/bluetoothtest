@@ -6,10 +6,7 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.util.Log;
@@ -27,10 +24,16 @@ public class UARTManager {
     private final static UUID UART_SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
     /**
      * RX characteristic UUID
+     * The peer can send data to the device by writing to the RX Characteristic of the service.
+     * ATT Write Request or ATT Write Command can be used. The received data is sent on the UART
+     * interface.
      */
     private final static UUID UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
     /**
      * TX characteristic UUID
+     * If the peer has enabled notifications for the TX Characteristic, the application
+     * can send data to the peer as notifications. The application will transmit all data
+     * received over UART as notifications.
      */
     private final static UUID UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
     /**
@@ -38,60 +41,36 @@ public class UARTManager {
      */
     private static final int MAX_PACKET_SIZE = 20;
     private static final String TAG = UARTManager.class.toString();
-    private final Context mContext;
-    private final Handler mHandler;
+    private final Context context;
+    private final Handler handler;
 
-    private BluetoothGattCharacteristic mRXCharacteristic, mTXCharacteristic;
-    private byte[] mOutgoingBuffer;
-    private int mBufferOffset;
-    private boolean mConnected;
-    private BluetoothGatt mBluetoothGatt;
-    private boolean mUserDisconnected;
-    private BleManagerCallbacks mCallbacks;
+    private BluetoothGattCharacteristic rxCharacteristic;
+    private byte[] outgoingBuffer;
+    private int bufferOffset;
 
-    /**
-     * Listen to whenever a device is bonded
-     */
-    private BroadcastReceiver mBondingBroadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(final Context context, final Intent intent) {
-            final BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-            final int bondState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1);
-            final int previousBondState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1);
+    // indicates whether we are connected to a bluetooth device
+    private boolean connected;
 
-            // Skip other devices
-            if (mBluetoothGatt == null || !device.getAddress().equals(mBluetoothGatt.getDevice().getAddress()))
-                return;
+    // initialized when connected to a device
+    private BluetoothGatt bluetoothGatt;
 
-            Log.d(TAG, "[Broadcast] Action received: " + BluetoothDevice.ACTION_BOND_STATE_CHANGED + ", bond state changed to: " + bondState);
+    // indicates if user disconnected from the device
+    private boolean userDisconnected;
 
-            switch (bondState) {
-                case BluetoothDevice.BOND_BONDING:
-                    mCallbacks.onBondingRequired();
-                    break;
-                case BluetoothDevice.BOND_BONDED:
-                    Log.i(TAG, "Device bonded");
-                    mCallbacks.onBonded();
+    // way to communicate with the UARTService itself, or anyone that wants to listen to some
+    // events
+    private BleManagerCallbacks bleManagerCallbacks;
 
-                    // Start initializing again.
-                    // In fact, bonding forces additional, internal service discovery (at least on Nexus devices), so this method may safely be used to start this process again.
-                    Log.v(TAG, "Discovering Services...");
-                    Log.d(TAG, "gatt.discoverServices()");
-                    mBluetoothGatt.discoverServices();
-                    break;
-            }
-        }
-    };
-    private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
+    private BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
             if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
-                mConnected = true;
+                connected = true;
                 Log.d(TAG, "Connected to " + gatt.getDevice().getAddress() + " - " + gatt.getDevice().getName());
-                mCallbacks.onDeviceConnected();
+                bleManagerCallbacks.onDeviceConnected();
 
-                mHandler.postDelayed(new Runnable() {
+                handler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         // Some proximity tags (e.g. nRF PROXIMITY) initialize bonding automatically when connected.
@@ -109,17 +88,17 @@ public class UARTManager {
                 }
 
                 onDeviceDisconnected();
-                mCallbacks.onDeviceDisconnected();
+                bleManagerCallbacks.onDeviceDisconnected();
 
-                mConnected = false;
+                connected = false;
 
-                if (mUserDisconnected) {
+                if (userDisconnected) {
                     Log.i(TAG, "Disconnected");
-                    mCallbacks.onDeviceDisconnected();
+                    bleManagerCallbacks.onDeviceDisconnected();
                     close();
                 } else {
                     Log.w(TAG, "Connection lost");
-                    mCallbacks.onLinklossOccur();
+                    bleManagerCallbacks.onLinklossOccur();
                     // We are not closing the connection here as the device should try to reconnect automatically.
                     // This may be only called when the shouldAutoConnect() method returned true.
                 }
@@ -132,24 +111,23 @@ public class UARTManager {
         public boolean isRequiredServiceSupported(final BluetoothGatt gatt) {
             final BluetoothGattService service = gatt.getService(UART_SERVICE_UUID);
             if (service != null) {
-                mRXCharacteristic = service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
-                mTXCharacteristic = service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+                rxCharacteristic = service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
             }
 
             boolean writeRequest = false;
             boolean writeCommand = false;
-            if (mRXCharacteristic != null) {
-                final int rxProperties = mRXCharacteristic.getProperties();
+            if (rxCharacteristic != null) {
+                final int rxProperties = rxCharacteristic.getProperties();
                 writeRequest = (rxProperties & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0;
                 writeCommand = (rxProperties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) > 0;
 
                 // Set the WRITE REQUEST type when the characteristic supports it. This will allow to send long write (also if the characteristic support it).
                 // In case there is no WRITE REQUEST property, this manager will divide texts longer then 20 bytes into up to 20 bytes chunks.
                 if (writeRequest)
-                    mRXCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                    rxCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
             }
 
-            return mRXCharacteristic != null && mTXCharacteristic != null && (writeRequest || writeCommand);
+            return rxCharacteristic != null && (writeRequest || writeCommand);
         }
 
         @Override
@@ -162,64 +140,57 @@ public class UARTManager {
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            final byte[] buffer = mOutgoingBuffer;
-            if (mBufferOffset == buffer.length) {
+            final byte[] buffer = outgoingBuffer;
+            if (bufferOffset == buffer.length) {
                 try {
-                    mCallbacks.onDataSent(new String(buffer, "UTF-8"));
+                    bleManagerCallbacks.onDataSent(new String(buffer, "UTF-8"));
                 } catch (final UnsupportedEncodingException e) {
                     // do nothing
                 }
-                mOutgoingBuffer = null;
+                outgoingBuffer = null;
             } else { // Otherwise...
-                final int length = Math.min(buffer.length - mBufferOffset, MAX_PACKET_SIZE);
+                final int length = Math.min(buffer.length - bufferOffset, MAX_PACKET_SIZE);
                 final byte[] data = new byte[length]; // We send at most 20 bytes
-                System.arraycopy(buffer, mBufferOffset, data, 0, length);
-                mBufferOffset += length;
-                mRXCharacteristic.setValue(data);
-                writeCharacteristic(mRXCharacteristic);
+                System.arraycopy(buffer, bufferOffset, data, 0, length);
+                bufferOffset += length;
+                rxCharacteristic.setValue(data);
+                writeCharacteristic(rxCharacteristic);
             }
         }
 
+        // Note: this will only write characters and send to bluetooth device, but not read
+        // in order to do so, implement onCharacteristicRead
+
         protected void onDeviceDisconnected() {
-            mRXCharacteristic = null;
-            mTXCharacteristic = null;
+            rxCharacteristic = null;
         }
     };
 
     public UARTManager(final Context context) {
-        this.mContext = context;
-        mHandler = new Handler();
-        mUserDisconnected = false;
-
-        // Register bonding broadcast receiver
-        context.registerReceiver(mBondingBroadcastReceiver, new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED));
+        this.context = context;
+        handler = new Handler();
+        userDisconnected = false;
     }
 
     public boolean disconnect() {
-        mUserDisconnected = true;
+        userDisconnected = true;
 
-        if (mConnected && mBluetoothGatt != null) {
+        if (connected && bluetoothGatt != null) {
             Log.v(TAG, "Disconnecting...");
-            mCallbacks.onDeviceDisconnecting();
+            bleManagerCallbacks.onDeviceDisconnecting();
             Log.d(TAG, "gatt.disconnect()");
-            mBluetoothGatt.disconnect();
+            bluetoothGatt.disconnect();
             return true;
         }
         return false;
     }
 
     public void close() {
-        try {
-            mContext.unregisterReceiver(mBondingBroadcastReceiver);
-            // mContext.unregisterReceiver(mPairingRequestBroadcastReceiver);
-        } catch (Exception e) {
-            // the receiver must have been not registered or unregistered before
+        if (bluetoothGatt != null) {
+            bluetoothGatt.close();
+            bluetoothGatt = null;
         }
-        if (mBluetoothGatt != null) {
-            mBluetoothGatt.close();
-            mBluetoothGatt = null;
-        }
-        mUserDisconnected = false;
+        userDisconnected = false;
     }
 
     /**
@@ -229,34 +200,34 @@ public class UARTManager {
      */
     public void send(final String text) {
         // Are we connected?
-        if (mRXCharacteristic == null)
+        if (rxCharacteristic == null)
             return;
 
         // An outgoing buffer may not be null if there is already another packet being sent. We do nothing in this case.
-        if (!TextUtils.isEmpty(text) && mOutgoingBuffer == null) {
-            final byte[] buffer = mOutgoingBuffer = text.getBytes();
-            mBufferOffset = 0;
+        if (!TextUtils.isEmpty(text) && outgoingBuffer == null) {
+            final byte[] buffer = outgoingBuffer = text.getBytes();
+            bufferOffset = 0;
 
             // Depending on whether the characteristic has the WRITE REQUEST property or not, we will either send it as it is (hoping the long write is implemented),
             // or divide it into up to 20 bytes chunks and send them one by one.
-            final boolean writeRequest = (mRXCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0;
+            final boolean writeRequest = (rxCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0;
 
             if (!writeRequest) { // no WRITE REQUEST property
                 final int length = Math.min(buffer.length, MAX_PACKET_SIZE);
                 final byte[] data = new byte[length]; // We send at most 20 bytes
                 System.arraycopy(buffer, 0, data, 0, length);
-                mBufferOffset += length;
-                mRXCharacteristic.setValue(data);
+                bufferOffset += length;
+                rxCharacteristic.setValue(data);
             } else { // there is WRITE REQUEST property
-                mRXCharacteristic.setValue(buffer);
-                mBufferOffset = buffer.length;
+                rxCharacteristic.setValue(buffer);
+                bufferOffset = buffer.length;
             }
-            writeCharacteristic(mRXCharacteristic);
+            writeCharacteristic(rxCharacteristic);
         }
     }
 
     protected final boolean writeCharacteristic(final BluetoothGattCharacteristic characteristic) {
-        final BluetoothGatt gatt = mBluetoothGatt;
+        final BluetoothGatt gatt = bluetoothGatt;
 
         if (gatt == null || characteristic == null)
             return false;
@@ -285,28 +256,28 @@ public class UARTManager {
     }
 
     public void setGattCallbacks(BleManagerCallbacks callbacks) {
-        mCallbacks = callbacks;
+        this.bleManagerCallbacks = callbacks;
     }
 
     public void connect(final BluetoothDevice device) {
-        if (mConnected)
+        if (connected)
             return;
 
-        if (mBluetoothGatt != null) {
+        if (bluetoothGatt != null) {
             Log.d(TAG, "gatt.close()");
-            mBluetoothGatt.close();
-            mBluetoothGatt = null;
+            bluetoothGatt.close();
+            bluetoothGatt = null;
         }
 
         final boolean autoConnect = shouldAutoConnect();
-        mUserDisconnected = !autoConnect; // We will receive Linkloss events only when the device is connected with autoConnect=true
+        userDisconnected = !autoConnect; // We will receive Linkloss events only when the device is connected with autoConnect=true
         Log.v(TAG, "Connecting...");
         Log.d(TAG, "gatt = device.connectGatt(autoConnect = " + autoConnect + ")");
-        mBluetoothGatt = device.connectGatt(mContext, autoConnect, getGattCallback());
+        bluetoothGatt = device.connectGatt(context, autoConnect, getGattCallback());
     }
 
     private BluetoothGattCallback getGattCallback() {
-        return mGattCallback;
+        return bluetoothGattCallback;
     }
 
     protected boolean shouldAutoConnect() {
