@@ -44,41 +44,6 @@ public class UARTService extends Service implements BleManagerCallbacks {
     }
 
     @Override
-    public void onServicesDiscovered(boolean optionalServicesFound) {
-
-    }
-
-    @Override
-    public void onDeviceReady() {
-
-    }
-
-    @Override
-    public void onBatteryValueReceived(int value) {
-
-    }
-
-    @Override
-    public void onBondingRequired() {
-
-    }
-
-    @Override
-    public void onBonded() {
-
-    }
-
-    @Override
-    public void onError(String message, int errorCode) {
-
-    }
-
-    @Override
-    public void onDeviceNotSupported() {
-
-    }
-
-    @Override
     public void onCreate() {
         super.onCreate();
 
