@@ -1,4 +1,10 @@
 <resources>
     <string name="app_name">BluetoothTest</string>
     <string name="scan">Scan Bluetooth</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="send">send</string>
+    <string name="not_connected">Not connected</string>
+    <string name="connected_device">Connected to %1$s</string>
+    <string name="send_message">Send:</string>
+    <string name="hint_message">ping</string>
 </resources>

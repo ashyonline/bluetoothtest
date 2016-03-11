@@ -1,64 +1,130 @@
 package com.codingbad.com.bluetoothtest;
 
-import android.Manifest;
-import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.pm.PackageManager;
-import android.os.Build;
+import android.content.ServiceConnection;
 import android.os.Bundle;
-import android.support.v4.content.ContextCompat;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.ParcelUuid;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.CompoundButton;
-import android.widget.Switch;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
-import com.google.inject.Inject;
-import com.squareup.otto.Subscribe;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import butterknife.OnCheckedChanged;
+import butterknife.OnClick;
+import no.nordicsemi.android.support.v18.scanner.BluetoothLeScannerCompat;
+import no.nordicsemi.android.support.v18.scanner.ScanCallback;
+import no.nordicsemi.android.support.v18.scanner.ScanFilter;
+import no.nordicsemi.android.support.v18.scanner.ScanResult;
+import no.nordicsemi.android.support.v18.scanner.ScanSettings;
 
-public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener, CompoundButton.OnCheckedChangeListener {
+/**
+ * Main Activity includes all UI
+ * <p/>
+ * A switch to scan bluetooth and the list of known devices.
+ * <p/>
+ * When connected, shows options to disconnect from the connected bluetooth or send a command.
+ */
+public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener {
 
-    private static final long INTERVAL_MILLIS = 6000;
-    private static final int PERMISSIONS_REQUEST_BLUETOOTH_ADMIN = 1;
+    // user for log purposes
+    private static final String TAG = MainActivity.class.toString();
+    private static final long SCAN_DURATION = 5000;
+    private static final String DEFAULT_MESSAGE = "O";
 
-    @Bind(R.id.scan_button)
-    protected Switch scanButton;
-
-    @Inject
-    protected OttoBus ottoBus;
+    // UI binded using Butterknife
     @Bind(R.id.bluetooth_list)
-    protected RecyclerView scannedBluetooth;
+    protected RecyclerView scannedBluetoothList;
+    @Bind(R.id.connected_layout)
+    protected LinearLayout connectionLayout;
+    @Bind(R.id.connected_device_name)
+    protected TextView connectedDeviceName;
+    @Bind(R.id.message)
+    protected EditText userMessage;
+
+    // recycler view adapter
     private BluetoothDevicesAdapter bluetoothDevicesAdapter;
-    private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                // Create a new device item
-                int rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
-                BluetoothDeviceWithStrength newDevice = new BluetoothDeviceWithStrength(device, rssi);
-                // Add it to our adapter
-                bluetoothDevicesAdapter.addItem(newDevice);
-            }
+
+    /**
+     * Using nordicsemi scan callback to scan devices
+     */
+    private ScanCallback scanDevicesCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            super.onScanResult(callbackType, result);
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            super.onScanFailed(errorCode);
+        }
+
+        @Override
+        public void onBatchScanResults(List<ScanResult> results) {
+            super.onBatchScanResults(results);
+
+            // Add new scan results to bluetooth list
+            bluetoothDevicesAdapter.update(results);
         }
     };
-    private List<BluetoothDeviceWithStrength> foundBluetooth;
-    private BluetoothAdapter bTAdapter;
+
+    // flag to know the scanning state
+    private boolean isScanning = false;
+
+    // handle used to stop scanning with some delay
+    private Handler handler = new Handler();
+
+    // uuid which right now is null, for the scanning process
+    private ParcelUuid uuid;
+
+    // save device we are currently connected to
+    private String deviceName;
+
+    // save binder to service once it is connected
+    // this will be the binder of the Service's communication channel, to make calls on.
+    private UARTService.UARTBinder UARTBinder;
+
+    // save when the activity is binded to the service or not
+    private boolean isConnected = false;
+
+    // This service connection object receives information as the service is started and stopped
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @SuppressWarnings("unchecked")
+        @Override
+        public void onServiceConnected(final ComponentName name, final IBinder service) {
+            Log.d(TAG, "UARTService connected");
+            isConnected = true;
+
+            // save binder
+            UARTBinder = (UARTService.UARTBinder) service;
+
+            // show disconnect button
+            connectionLayout.setVisibility(View.VISIBLE);
+
+            // show user the current device we are connected to
+            connectedDeviceName.setText(getString(R.string.connected_device, deviceName));
+        }
+
+        @Override
+        public void onServiceDisconnected(final ComponentName name) {
+            Log.d(TAG, "UARTService disconnected");
+            isConnected = false;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,139 +132,147 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         BluetoothTestApplication.injectMembers(this);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
-        scanButton.setOnCheckedChangeListener(this);
-        bTAdapter = BluetoothAdapter.getDefaultAdapter();
-        boolean isEnabled = bTAdapter.isEnabled();
-        if (!isEnabled) {
-            bTAdapter.enable();
-        }
 
-        setUpBlueToothDevices();
+        setUpBlueToothList();
     }
 
-    private void setUpBlueToothDevices() {
-        scannedBluetooth.setHasFixedSize(true);
+    /**
+     * Set up recycler view to list bluetooth devices
+     */
+    private void setUpBlueToothList() {
+        scannedBluetoothList.setHasFixedSize(true);
         RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(this);
 
-        scannedBluetooth.setLayoutManager(layoutManager);
+        scannedBluetoothList.setLayoutManager(layoutManager);
 
         bluetoothDevicesAdapter = new BluetoothDevicesAdapter(this);
-        foundBluetooth = new ArrayList<BluetoothDeviceWithStrength>();
-        bluetoothDevicesAdapter.addItemList(foundBluetooth);
-        scannedBluetooth.setAdapter(bluetoothDevicesAdapter);
+        bluetoothDevicesAdapter.addItemList(new ArrayList<BluetoothDeviceWithStrength>());
+        scannedBluetoothList.setAdapter(bluetoothDevicesAdapter);
     }
 
-    @Override
-    public void onStart() {
-        super.onStart();
-        ottoBus.register(this);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        ottoBus.unregister(this);
-    }
-
-    @TargetApi(Build.VERSION_CODES.M)
-    private void promptUserForBluetoothAccess() {
-        int permissionCheck = ContextCompat.checkSelfPermission(this,
-                Manifest.permission.BLUETOOTH_ADMIN);
-
-        if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
-            // Should we show an explanation?
-            if (shouldShowRequestPermissionRationale(Manifest.permission.BLUETOOTH_ADMIN)) {
-
-                // Show an explanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-
-            } else {
-
-                // No explanation needed, we can request the permission.
-
-                requestPermissions(new String[]{Manifest.permission.BLUETOOTH_ADMIN},
-                        PERMISSIONS_REQUEST_BLUETOOTH_ADMIN);
-
-                // PERMISSIONS_REQUEST_BLUETOOTH_ADMIN is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
-            }
-        } else {
-            // if permission is granted, turn on bluetooth
-            registerBluetoothReceiver();
-        }
-    }
-
-    private void registerBluetoothReceiver() {
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        bluetoothDevicesAdapter.removeAll();
-        registerReceiver(broadcastReceiver, filter);
-        bTAdapter.startDiscovery();
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_REQUEST_BLUETOOTH_ADMIN: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-                    registerBluetoothReceiver();
-                } else {
-
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-                }
-                return;
-            }
-
-            // other 'case' lines to check for other
-            // permissions this app might request
-        }
-    }
-
-    private void scanBluetooth() {
-        // Construct an intent that will execute the AlarmReceiver
-        Intent intent = new Intent(getApplicationContext(), AlarmReceiver.class);
-        // Create a PendingIntent to be triggered when the alarm goes off
-        final PendingIntent pIntent = PendingIntent.getBroadcast(this, AlarmReceiver.REQUEST_CODE,
-                intent, PendingIntent.FLAG_UPDATE_CURRENT);
-        long firstMillis = System.currentTimeMillis(); // alarm is set right away
-        AlarmManager alarm = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
-        // First parameter is the type: ELAPSED_REALTIME, ELAPSED_REALTIME_WAKEUP, RTC_WAKEUP
-        // Interval can be INTERVAL_FIFTEEN_MINUTES, INTERVAL_HALF_HOUR, INTERVAL_HOUR, INTERVAL_DAY
-        alarm.setRepeating(AlarmManager.RTC_WAKEUP, firstMillis,
-                AlarmManager.INTERVAL_FIFTEEN_MINUTES, pIntent);
-    }
-
+    /**
+     * When one of the devices is clicked, connect to it
+     *
+     * @param view
+     * @param position
+     */
     @Override
     public void onItemClickListener(View view, int position) {
-        try {
-            new BluetoothConnector(bluetoothDevicesAdapter.getItemAtPosition(position).getDevice(), false, bTAdapter, null).connect();
-        } catch (IOException e) {
-            e.printStackTrace();
+        stopBluetoothScan();
+        BluetoothDeviceWithStrength selectedDevice = bluetoothDevicesAdapter.getItemAtPosition(position);
+        onDeviceSelected(selectedDevice.getDevice(), selectedDevice.getName());
+    }
+
+    /**
+     * Connect to selected device
+     *
+     * @param device
+     * @param name
+     */
+    public void onDeviceSelected(final BluetoothDevice device, final String name) {
+        if (deviceName != null && deviceName.equals(name)) {
+            // we are already connected to this device, disconnect
+        } else {
+            deviceName = name;
+        }
+
+        // The device may not be in the range but the service will try to connect to it if it reach it
+        // TODO: check if the device is near to connect
+        final Intent service = new Intent(this, UARTService.class);
+        service.putExtra(Constants.EXTRA_DEVICE_ADDRESS, device.getAddress());
+        startService(service);
+
+        Log.d(TAG, "Binding to the service...");
+        // bind to UARTService
+        bindService(service, serviceConnection, 0);
+    }
+
+    /**
+     * Use nordicsemi library to scan bluetooth devices regarding android SDK version used
+     */
+    public void startBluetoothScan() {
+
+        // *** code borrowed from nordicsemi example to scan
+        final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
+        final ScanSettings settings = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).setReportDelay(1000).setUseHardwareBatchingIfSupported(false).build();
+        final List<ScanFilter> filters = new ArrayList<>();
+        filters.add(new ScanFilter.Builder().setServiceUuid(uuid).build());
+        scanner.startScan(filters, settings, scanDevicesCallback);
+        // *** end of borrowed
+
+        isScanning = true;
+
+        // stop scanning after SCAN_DURATION milliseconds
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (isScanning) {
+                    stopBluetoothScan();
+                }
+            }
+        }, SCAN_DURATION);
+    }
+
+    /**
+     * Stop scan if user tap Cancel button
+     */
+    private void stopBluetoothScan() {
+        if (isScanning) {
+            final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
+            scanner.stopScan(scanDevicesCallback);
+
+            isScanning = false;
         }
     }
 
-    @Subscribe
-    public void onDeviceFound(ScanBluetoothService.DeviceFoundEvent deviceFoundEvent) {
-        BluetoothDeviceWithStrength bluetoothDeviceWithStrength = new BluetoothDeviceWithStrength(deviceFoundEvent.getDevice(), deviceFoundEvent.getStrength());
-        bluetoothDevicesAdapter.addItem(bluetoothDeviceWithStrength);
-    }
-
-    @Override
+    /**
+     * Start and stop scanning
+     *
+     * @param buttonView
+     * @param isChecked
+     */
+    @OnCheckedChanged(R.id.scan_button)
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         if (isChecked) {
-            promptUserForBluetoothAccess();
+            startBluetoothScan();
         } else {
-            unregisterReceiver(broadcastReceiver);
-            bTAdapter.cancelDiscovery();
+            stopBluetoothScan();
             bluetoothDevicesAdapter.removeAll();
+        }
+    }
+
+    /**
+     * Disconnect from binder
+     */
+    @OnClick(R.id.disconnect_button)
+    public void onConnectClicked() {
+        if (UARTBinder != null) {
+            UARTBinder.disconnect();
+            connectionLayout.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Hide soft keyboard
+     */
+    public void hideSoftKeyboard() {
+        if (getCurrentFocus() != null) {
+            InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            inputMethodManager.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+        }
+    }
+
+    @OnClick(R.id.send_button)
+    public void onSendClicked() {
+        if (UARTBinder != null) {
+            hideSoftKeyboard();
+            String message = userMessage.getText().toString();
+            if (message != null && !message.isEmpty()) {
+                UARTBinder.send(message);
+            } else {
+                UARTBinder.send(DEFAULT_MESSAGE);
+            }
         }
     }
 }

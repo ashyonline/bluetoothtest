@@ -7,6 +7,8 @@ import android.view.ViewGroup;
 import java.util.ArrayList;
 import java.util.List;
 
+import no.nordicsemi.android.support.v18.scanner.ScanResult;
+
 /**
  * Created by Ayelen Chavez on 07.03.16.
  */
@@ -118,6 +120,21 @@ public class BluetoothDevicesAdapter extends RecyclerView.Adapter<BluetoothDevic
         final BluetoothDeviceWithStrength moved = this.bluetoothDevices.remove(fromPosition);
         this.bluetoothDevices.add(toPosition, moved);
         notifyItemMoved(fromPosition, toPosition);
+    }
+
+    public void update(List<ScanResult> results) {
+        for (ScanResult result : results) {
+            BluetoothDeviceWithStrength newDevice = new BluetoothDeviceWithStrength(result.getDevice(), result.getRssi());
+
+            if (!bluetoothDevices.contains(newDevice)) {
+                // Add it to our adapter
+                addItem(newDevice);
+            } else {
+                BluetoothDeviceWithStrength device = bluetoothDevices.get(bluetoothDevices.indexOf(newDevice));
+                // TODO: update device
+            }
+        }
+
     }
 
     public interface RecyclerViewListener {

@@ -30,4 +30,34 @@ public class BluetoothDeviceWithStrength {
 
         return device;
     }
+
+    /**
+     * Compare two BluetoothDevicesWithStrength by name
+     *
+     * @param o
+     * @return
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof BluetoothDeviceWithStrength)) {
+            return false;
+        }
+
+        BluetoothDeviceWithStrength temp = (BluetoothDeviceWithStrength) o;
+        String name = temp.device.getName();
+
+        if (name == null && device.getName() == null) {
+            return true;
+        }
+
+        if (name == null || device.getName() == null) {
+            return false;
+        }
+
+        if (name.equals(device.getName())) {
+            return true;
+        }
+
+        return super.equals(o);
+    }
 }

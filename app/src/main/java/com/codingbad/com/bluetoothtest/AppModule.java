@@ -7,6 +7,10 @@ import com.google.inject.Provider;
 
 /**
  * Created by Ayelen Chavez on 07.03.16.
+ * <p/>
+ * Module used for Guice configuration to inject objects
+ * <p/>
+ * Mostly boilerplate code.
  */
 public class AppModule extends AbstractModule {
 
