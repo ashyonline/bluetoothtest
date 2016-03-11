@@ -1,9 +1,12 @@
-package com.codingbad.com.bluetoothtest;
+package com.codingbad.com.bluetoothtest.view;
 
 import android.content.Context;
 import android.util.AttributeSet;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import com.codingbad.com.bluetoothtest.model.BluetoothDeviceWithStrength;
+import com.codingbad.com.bluetoothtest.R;
 
 /**
  * Created by Ayelen Chavez on 07.03.16.

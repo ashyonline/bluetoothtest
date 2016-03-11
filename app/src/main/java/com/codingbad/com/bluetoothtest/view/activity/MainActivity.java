@@ -1,4 +1,4 @@
-package com.codingbad.com.bluetoothtest;
+package com.codingbad.com.bluetoothtest.view.activity;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
@@ -18,6 +18,13 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import com.codingbad.com.bluetoothtest.model.BluetoothDeviceWithStrength;
+import com.codingbad.com.bluetoothtest.BluetoothTestApplication;
+import com.codingbad.com.bluetoothtest.Constants;
+import com.codingbad.com.bluetoothtest.R;
+import com.codingbad.com.bluetoothtest.model.UARTService;
+import com.codingbad.com.bluetoothtest.view.BluetoothDevicesAdapter;
 
 import java.util.ArrayList;
 import java.util.List;

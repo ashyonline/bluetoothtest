@@ -1,8 +1,10 @@
-package com.codingbad.com.bluetoothtest;
+package com.codingbad.com.bluetoothtest.view;
 
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
 import android.view.ViewGroup;
+
+import com.codingbad.com.bluetoothtest.model.BluetoothDeviceWithStrength;
 
 import java.util.ArrayList;
 import java.util.List;

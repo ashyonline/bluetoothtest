@@ -1,4 +1,4 @@
-package com.codingbad.com.bluetoothtest;
+package com.codingbad.com.bluetoothtest.model;
 
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
+
+import com.codingbad.com.bluetoothtest.Constants;
 
 /**
  * Created by Ayelen Chavez on 09.03.16.

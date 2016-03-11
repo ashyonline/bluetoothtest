@@ -1,4 +1,4 @@
-package com.codingbad.com.bluetoothtest;
+package com.codingbad.com.bluetoothtest.model;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
