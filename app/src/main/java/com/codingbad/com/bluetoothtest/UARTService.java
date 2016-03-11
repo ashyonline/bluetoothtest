@@ -15,7 +15,7 @@ import android.util.Log;
 public class UARTService extends Service implements BleManagerCallbacks {
     private static final String TAG = UARTService.class.toString();
 
-    private UARTManager bluetoothManager;
+    private UARTManager uartManager;
 
     private String deviceAddress;
     private boolean connected;
@@ -48,8 +48,8 @@ public class UARTService extends Service implements BleManagerCallbacks {
         super.onCreate();
 
         // initialize the manager
-        bluetoothManager = new UARTManager(this);
-        bluetoothManager.setGattCallbacks(this);
+        uartManager = new UARTManager(this);
+        uartManager.setGattCallbacks(this);
     }
 
     /**
@@ -73,7 +73,7 @@ public class UARTService extends Service implements BleManagerCallbacks {
         final BluetoothAdapter adapter = bluetoothManager.getAdapter();
         final BluetoothDevice device = adapter.getRemoteDevice(deviceAddress);
 
-        this.bluetoothManager.connect(device);
+        this.uartManager.connect(device);
         return START_REDELIVER_INTENT;
     }
 
@@ -115,7 +115,7 @@ public class UARTService extends Service implements BleManagerCallbacks {
 
     public class UARTBinder extends Binder {
         public void send(final String text) {
-            bluetoothManager.send(text);
+            uartManager.send(text);
         }
 
         public final void disconnect() {
@@ -124,7 +124,7 @@ public class UARTService extends Service implements BleManagerCallbacks {
                 return;
             }
 
-            bluetoothManager.disconnect();
+            uartManager.disconnect();
         }
     }
 }
