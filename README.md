@@ -1,4 +1,13 @@
+
 # bluetoothtest
+
+This project will allow you to scan Bluetooth devices from your Android device. A list of scanned devices will be shown to the user.
+
+When one of the devices is clicked, it will try to connect to it.
+
+Once connected, you can send a sequence of characters to it or disconnect. 
+
+#GATT
 
 GATT is an acronym for the Generic Attribute Profile, and it defines the way that two Bluetooth Low Energy devices transfer data back and forth using concepts called Services and Characteristics. It makes use of a generic data protocol called the Attribute Protocol (ATT), which is used to store Services, Characteristics and related data in a simple lookup table using 16-bit IDs for each entry in the table.
 
