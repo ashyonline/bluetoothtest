@@ -9,6 +9,8 @@ Once connected, you can send a sequence of characters to it or disconnect.
 
 #GATT
 
+For a more complete article about GATT: https://www.safaribooksonline.com/library/view/getting-started-with/9781491900550/ch04.html
+
 GATT is an acronym for the Generic Attribute Profile, and it defines the way that two Bluetooth Low Energy devices transfer data back and forth using concepts called Services and Characteristics. It makes use of a generic data protocol called the Attribute Protocol (ATT), which is used to store Services, Characteristics and related data in a simple lookup table using 16-bit IDs for each entry in the table.
 
 GATT comes into play once a dedicated connection is established between two devices, meaning that you have already gone through the advertising process governed by GAP.
