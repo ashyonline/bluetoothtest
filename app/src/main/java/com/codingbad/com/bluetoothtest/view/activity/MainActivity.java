@@ -1,17 +1,9 @@
 package com.codingbad.com.bluetoothtest.view.activity;
 
 import android.app.Activity;
-import android.bluetooth.BluetoothDevice;
-import android.content.ComponentName;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.IBinder;
-import android.os.ParcelUuid;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.CompoundButton;
@@ -19,11 +11,11 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.codingbad.com.bluetoothtest.model.BluetoothDeviceWithStrength;
 import com.codingbad.com.bluetoothtest.BluetoothTestApplication;
-import com.codingbad.com.bluetoothtest.Constants;
 import com.codingbad.com.bluetoothtest.R;
-import com.codingbad.com.bluetoothtest.model.UARTService;
+import com.codingbad.com.bluetoothtest.model.BluetoothDeviceWithStrength;
+import com.codingbad.com.bluetoothtest.mvp.presenter.MainPresenter;
+import com.codingbad.com.bluetoothtest.mvp.view.IMainView;
 import com.codingbad.com.bluetoothtest.view.BluetoothDevicesAdapter;
 
 import java.util.ArrayList;
@@ -33,11 +25,7 @@ import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnCheckedChanged;
 import butterknife.OnClick;
-import no.nordicsemi.android.support.v18.scanner.BluetoothLeScannerCompat;
-import no.nordicsemi.android.support.v18.scanner.ScanCallback;
-import no.nordicsemi.android.support.v18.scanner.ScanFilter;
 import no.nordicsemi.android.support.v18.scanner.ScanResult;
-import no.nordicsemi.android.support.v18.scanner.ScanSettings;
 
 /**
  * Main Activity includes all UI
@@ -46,12 +34,10 @@ import no.nordicsemi.android.support.v18.scanner.ScanSettings;
  * <p/>
  * When connected, shows options to disconnect from the connected bluetooth or send a command.
  */
-public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener {
+public class MainActivity extends Activity implements BluetoothDevicesAdapter.RecyclerViewListener, IMainView {
 
     // user for log purposes
     private static final String TAG = MainActivity.class.toString();
-    private static final long SCAN_DURATION = 5000;
-    private static final String DEFAULT_MESSAGE = "O";
 
     // UI binded using Butterknife
     @Bind(R.id.bluetooth_list)
@@ -63,75 +49,10 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
     @Bind(R.id.message)
     protected EditText userMessage;
 
+    protected MainPresenter mainPresenter;
+
     // recycler view adapter
     private BluetoothDevicesAdapter bluetoothDevicesAdapter;
-
-    /**
-     * Using nordicsemi scan callback to scan devices
-     */
-    private ScanCallback scanDevicesCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int callbackType, ScanResult result) {
-            super.onScanResult(callbackType, result);
-        }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            super.onScanFailed(errorCode);
-        }
-
-        @Override
-        public void onBatchScanResults(List<ScanResult> results) {
-            super.onBatchScanResults(results);
-
-            // Add new scan results to bluetooth list
-            bluetoothDevicesAdapter.update(results);
-        }
-    };
-
-    // flag to know the scanning state
-    private boolean isScanning = false;
-
-    // handle used to stop scanning with some delay
-    private Handler handler = new Handler();
-
-    // uuid which right now is null, for the scanning process
-    private ParcelUuid uuid;
-
-    // save device we are currently connected to
-    private String deviceName;
-
-    // save binder to service once it is connected
-    // this will be the binder of the Service's communication channel, to make calls on.
-    private UARTService.UARTBinder UARTBinder;
-
-    // save when the activity is binded to the service or not
-    private boolean isConnected = false;
-
-    // This service connection object receives information as the service is started and stopped
-    private ServiceConnection serviceConnection = new ServiceConnection() {
-        @SuppressWarnings("unchecked")
-        @Override
-        public void onServiceConnected(final ComponentName name, final IBinder service) {
-            Log.d(TAG, "UARTService connected");
-            isConnected = true;
-
-            // save binder
-            UARTBinder = (UARTService.UARTBinder) service;
-
-            // show disconnect button
-            connectionLayout.setVisibility(View.VISIBLE);
-
-            // show user the current device we are connected to
-            connectedDeviceName.setText(getString(R.string.connected_device, deviceName));
-        }
-
-        @Override
-        public void onServiceDisconnected(final ComponentName name) {
-            Log.d(TAG, "UARTService disconnected");
-            isConnected = false;
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -139,7 +60,8 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         BluetoothTestApplication.injectMembers(this);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
-
+        mainPresenter = new MainPresenter(this);
+        mainPresenter.attachView(this);
         setUpBlueToothList();
     }
 
@@ -165,72 +87,9 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
      */
     @Override
     public void onItemClickListener(View view, int position) {
-        stopBluetoothScan();
+        mainPresenter.stopBluetoothScan();
         BluetoothDeviceWithStrength selectedDevice = bluetoothDevicesAdapter.getItemAtPosition(position);
-        onDeviceSelected(selectedDevice.getDevice(), selectedDevice.getName());
-    }
-
-    /**
-     * Connect to selected device
-     *
-     * @param device
-     * @param name
-     */
-    public void onDeviceSelected(final BluetoothDevice device, final String name) {
-        if (deviceName != null && deviceName.equals(name)) {
-            // we are already connected to this device, disconnect
-        } else {
-            deviceName = name;
-        }
-
-        // The device may not be in the range but the service will try to connect to it if it reach it
-        // TODO: check if the device is near to connect
-        final Intent service = new Intent(this, UARTService.class);
-        service.putExtra(Constants.EXTRA_DEVICE_ADDRESS, device.getAddress());
-        startService(service);
-
-        Log.d(TAG, "Binding to the service...");
-        // bind to UARTService
-        bindService(service, serviceConnection, 0);
-    }
-
-    /**
-     * Use nordicsemi library to scan bluetooth devices regarding android SDK version used
-     */
-    public void startBluetoothScan() {
-
-        // *** code borrowed from nordicsemi example to scan
-        final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
-        final ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).setReportDelay(1000).setUseHardwareBatchingIfSupported(false).build();
-        final List<ScanFilter> filters = new ArrayList<>();
-        filters.add(new ScanFilter.Builder().setServiceUuid(uuid).build());
-        scanner.startScan(filters, settings, scanDevicesCallback);
-        // *** end of borrowed
-
-        isScanning = true;
-
-        // stop scanning after SCAN_DURATION milliseconds
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (isScanning) {
-                    stopBluetoothScan();
-                }
-            }
-        }, SCAN_DURATION);
-    }
-
-    /**
-     * Stop scan if user tap Cancel button
-     */
-    private void stopBluetoothScan() {
-        if (isScanning) {
-            final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
-            scanner.stopScan(scanDevicesCallback);
-
-            isScanning = false;
-        }
+        mainPresenter.onDeviceSelected(selectedDevice.getDevice(), selectedDevice.getName());
     }
 
     /**
@@ -242,9 +101,9 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
     @OnCheckedChanged(R.id.scan_button)
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         if (isChecked) {
-            startBluetoothScan();
+            mainPresenter.startBluetoothScan();
         } else {
-            stopBluetoothScan();
+            mainPresenter.stopBluetoothScan();
             bluetoothDevicesAdapter.removeAll();
         }
     }
@@ -254,10 +113,8 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
      */
     @OnClick(R.id.disconnect_button)
     public void onConnectClicked() {
-        if (UARTBinder != null) {
-            UARTBinder.disconnect();
-            connectionLayout.setVisibility(View.GONE);
-        }
+        mainPresenter.onConnectionClicked();
+        connectionLayout.setVisibility(View.GONE);
     }
 
     /**
@@ -272,14 +129,22 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
 
     @OnClick(R.id.send_button)
     public void onSendClicked() {
-        if (UARTBinder != null) {
-            hideSoftKeyboard();
-            String message = userMessage.getText().toString();
-            if (message != null && !message.isEmpty()) {
-                UARTBinder.send(message);
-            } else {
-                UARTBinder.send(DEFAULT_MESSAGE);
-            }
-        }
+        hideSoftKeyboard();
+        String message = userMessage.getText().toString();
+        mainPresenter.onSendClicked(message);
+    }
+
+    @Override
+    public void updateScanResults(List<ScanResult> results) {
+        bluetoothDevicesAdapter.update(results);
+    }
+
+    @Override
+    public void onServiceConnected(String deviceName) {
+        // show disconnect button
+        connectionLayout.setVisibility(View.VISIBLE);
+
+        // show user the current device we are connected to
+        connectedDeviceName.setText(getString(R.string.connected_device, deviceName));
     }
 }
