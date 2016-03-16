@@ -24,8 +24,11 @@ import no.nordicsemi.android.support.v18.scanner.ScanSettings;
 
 /**
  * Created by Ayelen Chavez on 16.03.16.
+ *
+ * Main presenter used by main and THE one Activity.
+ * For this simple case, I think having a separated model is not necessary
  */
-public class MainPresenter {
+public class MainPresenter implements IMainPresenter {
     private static final String TAG = MainPresenter.class.toString();
     private static final String DEFAULT_MESSAGE = "O";
     private static final long SCAN_DURATION = 5000;
@@ -93,10 +96,12 @@ public class MainPresenter {
         this.context = context;
     }
 
+    @Override
     public void attachView(IMainView view) {
         this.mainView = view;
     }
 
+    @Override
     public void detachView() {
         this.mainView = null;
     }
@@ -104,6 +109,7 @@ public class MainPresenter {
     /**
      * Use nordicsemi library to scan bluetooth devices regarding android SDK version used
      */
+    @Override
     public void startBluetoothScan() {
 
         // *** code borrowed from nordicsemi example to scan
@@ -132,6 +138,7 @@ public class MainPresenter {
     /**
      * Stop scan if user tap Cancel button
      */
+    @Override
     public void stopBluetoothScan() {
         if (isScanning) {
             final BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
@@ -147,7 +154,8 @@ public class MainPresenter {
      * @param device
      * @param name
      */
-    public void onDeviceSelected(BluetoothDevice device, String name) {
+    @Override
+    public void connectToBleDevice(BluetoothDevice device, String name) {
         if (deviceName != null && deviceName.equals(name)) {
             // we are already connected to this device, disconnect
         } else {
@@ -165,7 +173,8 @@ public class MainPresenter {
         context.bindService(service, serviceConnection, 0);
     }
 
-    public void onSendClicked(String message) {
+    @Override
+    public void sendMessageToConnectedBleDevice(String message) {
         if (UARTBinder != null) {
             if (message != null && !message.isEmpty()) {
                 UARTBinder.send(message);
@@ -175,7 +184,8 @@ public class MainPresenter {
         }
     }
 
-    public void onConnectionClicked() {
+    @Override
+    public void disconnectFromBleDevice() {
         if (UARTBinder != null) {
             UARTBinder.disconnect();
         }

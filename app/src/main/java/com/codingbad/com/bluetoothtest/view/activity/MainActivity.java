@@ -14,6 +14,7 @@ import android.widget.TextView;
 import com.codingbad.com.bluetoothtest.BluetoothTestApplication;
 import com.codingbad.com.bluetoothtest.R;
 import com.codingbad.com.bluetoothtest.model.BluetoothDeviceWithStrength;
+import com.codingbad.com.bluetoothtest.mvp.presenter.IMainPresenter;
 import com.codingbad.com.bluetoothtest.mvp.presenter.MainPresenter;
 import com.codingbad.com.bluetoothtest.mvp.view.IMainView;
 import com.codingbad.com.bluetoothtest.view.BluetoothDevicesAdapter;
@@ -49,7 +50,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
     @Bind(R.id.message)
     protected EditText userMessage;
 
-    protected MainPresenter mainPresenter;
+    protected IMainPresenter mainPresenter;
 
     // recycler view adapter
     private BluetoothDevicesAdapter bluetoothDevicesAdapter;
@@ -63,6 +64,12 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
         mainPresenter = new MainPresenter(this);
         mainPresenter.attachView(this);
         setUpBlueToothList();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mainPresenter.detachView();
     }
 
     /**
@@ -89,7 +96,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
     public void onItemClickListener(View view, int position) {
         mainPresenter.stopBluetoothScan();
         BluetoothDeviceWithStrength selectedDevice = bluetoothDevicesAdapter.getItemAtPosition(position);
-        mainPresenter.onDeviceSelected(selectedDevice.getDevice(), selectedDevice.getName());
+        mainPresenter.connectToBleDevice(selectedDevice.getDevice(), selectedDevice.getName());
     }
 
     /**
@@ -112,8 +119,8 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
      * Disconnect from binder
      */
     @OnClick(R.id.disconnect_button)
-    public void onConnectClicked() {
-        mainPresenter.onConnectionClicked();
+    public void onDisconnectButtonClicked() {
+        mainPresenter.disconnectFromBleDevice();
         connectionLayout.setVisibility(View.GONE);
     }
 
@@ -131,7 +138,7 @@ public class MainActivity extends Activity implements BluetoothDevicesAdapter.Re
     public void onSendClicked() {
         hideSoftKeyboard();
         String message = userMessage.getText().toString();
-        mainPresenter.onSendClicked(message);
+        mainPresenter.sendMessageToConnectedBleDevice(message);
     }
 
     @Override
