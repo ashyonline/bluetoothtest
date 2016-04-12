@@ -9,9 +9,11 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.codingbad.com.bluetoothtest.BluetoothTestApplication;
 import com.codingbad.com.bluetoothtest.Constants;
 import com.codingbad.com.bluetoothtest.model.UARTService;
-import com.codingbad.com.bluetoothtest.mvp.view.IMainView;
+import com.codingbad.com.bluetoothtest.mvp.MainContract;
+import com.google.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,16 +26,18 @@ import no.nordicsemi.android.support.v18.scanner.ScanSettings;
 
 /**
  * Created by Ayelen Chavez on 16.03.16.
- *
+ * <p>
  * Main presenter used by main and THE one Activity.
  * For this simple case, I think having a separated model is not necessary
  */
-public class MainPresenter implements IMainPresenter {
+public class MainPresenter implements MainContract.Presenter {
     private static final String TAG = MainPresenter.class.toString();
     private static final String DEFAULT_MESSAGE = "O";
     private static final long SCAN_DURATION = 5000;
-    private final Context context;
-    protected IMainView mainView;
+
+    @Inject
+    protected Context context;
+    protected MainContract.View mainView;
     // save when the activity is binded to the service or not
     private boolean isConnected = false;
     private boolean isScanning = false;
@@ -92,17 +96,18 @@ public class MainPresenter implements IMainPresenter {
         }
     };
 
-    public MainPresenter(Context context) {
-        this.context = context;
+    public MainPresenter() {
+        BluetoothTestApplication.injectMembers(this);
     }
 
     @Override
-    public void attachView(IMainView view) {
+    public void attachView(MainContract.View view) {
         this.mainView = view;
     }
 
     @Override
     public void detachView() {
+        stopBluetoothScan();
         this.mainView = null;
     }
 

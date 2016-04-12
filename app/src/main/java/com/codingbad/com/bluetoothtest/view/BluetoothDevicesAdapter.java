@@ -48,8 +48,11 @@ public class BluetoothDevicesAdapter extends RecyclerView.Adapter<BluetoothDevic
         notifyItemInserted(getItemCount());
     }
 
-    public void addItemList(List<BluetoothDeviceWithStrength> bluetoothDevices) {
-        this.bluetoothDevices.addAll(bluetoothDevices);
+    public void addItemList(List<ScanResult> results) {
+        for (ScanResult result : results) {
+            addItem(new BluetoothDeviceWithStrength(result.getDevice(), result.getRssi()));
+        }
+
         notifyDataSetChanged();
     }
 
@@ -136,7 +139,6 @@ public class BluetoothDevicesAdapter extends RecyclerView.Adapter<BluetoothDevic
                 // TODO: update device
             }
         }
-
     }
 
     public interface RecyclerViewListener {

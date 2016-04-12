@@ -2,14 +2,16 @@ package com.codingbad.com.bluetoothtest;
 
 import android.content.Context;
 
+import com.codingbad.com.bluetoothtest.mvp.MainContract;
+import com.codingbad.com.bluetoothtest.mvp.presenter.MainPresenter;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provider;
 
 /**
  * Created by Ayelen Chavez on 07.03.16.
- * <p/>
+ * <p>
  * Module used for Guice configuration to inject objects
- * <p/>
+ * <p>
  * Mostly boilerplate code.
  */
 public class AppModule extends AbstractModule {
@@ -28,5 +30,6 @@ public class AppModule extends AbstractModule {
                 return (BluetoothTestApplication) BluetoothTestApplication.getAppContext();
             }
         });
+        bind(MainContract.Presenter.class).to(MainPresenter.class);
     }
 }
